@@ -1,0 +1,22 @@
+运行cinder/client更新状态:
+cinder reset-state --state available --attach-status detached volume-id
+
+进入数据库设定为detached状态:
+use cinder;
+update volume_attachment set attach_status='detached' where volume_id=volume-id
+
+
+查询出volume_id:
+use nova
+select * from block_device_mapping where volume_id=volume_id
+确认id
+
+
+更新block_device_mapping,如下:
+update block_device_mapping set deleted=id where volume_id=volum-id and id=id
+
+例如:
+update block_device_mapping set deleted=2597 where volume_id=volum-id and id=2597
+
+注意:系统卷不能detach.
+用rebuild更新虚机信息.
