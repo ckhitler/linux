@@ -1,0 +1,237 @@
+4110服务器性能存在问题,现象:
+openstack nova list/cinder list中关于调用8443等请求返回慢,第一次时间大约为30秒,后有缓存的情况下为5秒左右,在正常服务器返回为2秒左右.
+
+复现方法:
+sysctl -w vm.drop_caches=3
+nova list
+
+排查方向如下:
+1)关闭该服务器所有虚机,启用NUMA,将所有内核参数还原到默认,内核4.13以上,测试python range,1千万遍历为2-3秒左右,在华为机器和浪潮同型号的服务器为0.4-0.7秒左右
+
+2)用unix bench测试服务器性能,在多并发时为1000分左右.而华为机器为3300分,而同型号的服务器为3900分.
+
+3)为排除其它干扰，将服务器启动到kernel init=/bin/bash模式,该模式不会加载后台服务,从内核引导直接进入到bash,只挂载根分区,测试1千万遍历为1.4秒,unix bench打分为1600分.
+
+
+python测试方法:
+import profile
+def fun():
+   for i in range(10000000):
+      a = i * i
+profile.run('fun()')
+
+正常数值:
+0.5-0.7
+
+unix-bench:
+apt-get install libx11-dev libgl1-mesa-dev libxext-dev perl perl-modules make git
+git clone https://github.com/kdlucas/byte-unixbench.git
+cd byte-unixbench/UnixBench/
+./Run
+
+   #    #  #    #  #  #    #          #####   ######  #    #   ####   #    #
+   #    #  ##   #  #   #  #           #    #  #       ##   #  #    #  #    #
+   #    #  # #  #  #    ##            #####   #####   # #  #  #       ######
+   #    #  #  # #  #    ##            #    #  #       #  # #  #       #    #
+   #    #  #   ##  #   #  #           #    #  #       #   ##  #    #  #    #
+    ####   #    #  #  #    #          #####   ######  #    #   ####   #    #
+
+   Version 5.1.3                      Based on the Byte Magazine Unix Benchmark
+
+   Multi-CPU version                  Version 5 revisions by Ian Smith,
+                                      Sunnyvale, CA, USA
+   January 13, 2011                   johantheghost at yahoo period com
+
+------------------------------------------------------------------------------
+   Use directories for:
+      * File I/O tests (named fs***) = /home/ubuntu/byte-unixbench/UnixBench/tmp
+      * Results                      = /home/ubuntu/byte-unixbench/UnixBench/results
+------------------------------------------------------------------------------
+
+
+1 x Dhrystone 2 using register variables  1 2 3 4 5 6 7 8 9 10
+
+1 x Double-Precision Whetstone  1 2 3 4 5 6 7 8 9 10
+
+1 x Execl Throughput  1 2 3
+
+1 x File Copy 1024 bufsize 2000 maxblocks  1 2 3
+
+1 x File Copy 256 bufsize 500 maxblocks  1 2 3
+
+1 x File Copy 4096 bufsize 8000 maxblocks  1 2 3
+
+1 x Pipe Throughput  1 2 3 4 5 6 7 8 9 10
+
+1 x Pipe-based Context Switching  1 2 3 4 5 6 7 8 9 10
+
+1 x Process Creation  1 2 3
+
+1 x System Call Overhead  1 2 3 4 5 6 7 8 9 10
+
+1 x Shell Scripts (1 concurrent)  1 2 3
+
+1 x Shell Scripts (8 concurrent)  1 2 3
+
+32 x Dhrystone 2 using register variables  1 2 3 4 5 6 7 8 9 10
+
+32 x Double-Precision Whetstone  1 2 3 4 5 6 7 8 9 10
+
+32 x Execl Throughput  1 2 3
+
+32 x File Copy 1024 bufsize 2000 maxblocks  1 2 3
+
+32 x File Copy 256 bufsize 500 maxblocks  1 2 3
+
+32 x File Copy 4096 bufsize 8000 maxblocks  1 2 3
+
+32 x Pipe Throughput  1 2 3 4 5 6 7 8 9 10
+
+32 x Pipe-based Context Switching  1 2 3 4 5 6 7 8 9 10
+
+32 x Process Creation  1 2 3
+
+32 x System Call Overhead  1 2 3 4 5 6 7 8 9 10
+
+32 x Shell Scripts (1 concurrent)  1 2 3
+
+32 x Shell Scripts (8 concurrent)  1 2 3
+
+========================================================================
+   BYTE UNIX Benchmarks (Version 5.1.3)
+
+   System: ubuntu16: GNU/Linux
+   OS: GNU/Linux -- 4.4.0-116-generic -- #140-Ubuntu SMP Mon Feb 12 21:23:04 UTC 2018
+   Machine: x86_64 (x86_64)
+   Language: en_US.utf8 (charmap="UTF-8", collate="UTF-8")
+   CPU 0: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4190.2 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 1: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4190.2 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 2: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4190.2 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 3: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4190.2 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 4: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4190.2 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 5: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4190.2 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 6: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4190.2 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 7: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4190.2 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 8: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4191.7 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 9: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4191.7 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 10: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4191.7 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 11: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4191.7 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 12: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4191.7 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 13: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4191.7 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 14: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4191.7 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 15: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4191.7 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 16: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4190.2 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 17: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4190.2 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 18: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4190.2 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 19: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4190.2 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 20: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4190.2 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 21: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4190.2 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 22: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4190.2 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 23: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4190.2 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 24: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4191.7 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 25: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4191.7 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 26: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4191.7 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 27: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4191.7 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 28: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4191.7 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 29: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4191.7 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 30: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4191.7 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   CPU 31: Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz (4191.7 bogomips)
+          Hyper-Threading, x86-64, MMX, Physical Address Ext, SYSENTER/SYSEXIT, SYSCALL/SYSRET, Intel virtualization
+   15:18:27 up 8 min,  1 user,  load average: 0.25, 0.13, 0.05; runlevel 2018-08-21
+
+------------------------------------------------------------------------
+Benchmark Run: Tue Aug 21 2018 15:18:27 - 15:46:41
+32 CPUs in system; running 1 parallel copy of tests
+
+Dhrystone 2 using register variables       24299181.1 lps   (10.0 s, 7 samples)
+Double-Precision Whetstone                     2975.1 MWIPS (9.9 s, 7 samples)
+Execl Throughput                               1803.3 lps   (30.0 s, 2 samples)
+File Copy 1024 bufsize 2000 maxblocks         51075.5 KBps  (30.0 s, 2 samples)
+File Copy 256 bufsize 500 maxblocks           12804.5 KBps  (30.0 s, 2 samples)
+File Copy 4096 bufsize 8000 maxblocks        187998.9 KBps  (30.0 s, 2 samples)
+Pipe Throughput                              742912.7 lps   (10.0 s, 7 samples)
+Pipe-based Context Switching                 103428.1 lps   (10.0 s, 7 samples)
+Process Creation                               4389.6 lps   (30.0 s, 2 samples)
+Shell Scripts (1 concurrent)                   5235.1 lpm   (60.0 s, 2 samples)
+Shell Scripts (8 concurrent)                   2880.5 lpm   (60.0 s, 2 samples)
+System Call Overhead                         803445.6 lps   (10.0 s, 7 samples)
+
+System Benchmarks Index Values               BASELINE       RESULT    INDEX
+Dhrystone 2 using register variables         116700.0   24299181.1   2082.2
+Double-Precision Whetstone                       55.0       2975.1    540.9
+Execl Throughput                                 43.0       1803.3    419.4
+File Copy 1024 bufsize 2000 maxblocks          3960.0      51075.5    129.0
+File Copy 256 bufsize 500 maxblocks            1655.0      12804.5     77.4
+File Copy 4096 bufsize 8000 maxblocks          5800.0     187998.9    324.1
+Pipe Throughput                               12440.0     742912.7    597.2
+Pipe-based Context Switching                   4000.0     103428.1    258.6
+Process Creation                                126.0       4389.6    348.4
+Shell Scripts (1 concurrent)                     42.4       5235.1   1234.7
+Shell Scripts (8 concurrent)                      6.0       2880.5   4800.8
+System Call Overhead                          15000.0     803445.6    535.6
+                                                                   ========
+System Benchmarks Index Score                                         502.8
+
+------------------------------------------------------------------------
+Benchmark Run: Tue Aug 21 2018 15:46:41 - 16:15:00
+32 CPUs in system; running 32 parallel copies of tests
+
+Dhrystone 2 using register variables      536124358.2 lps   (10.0 s, 7 samples)
+Double-Precision Whetstone                    63552.7 MWIPS (10.9 s, 7 samples)
+Execl Throughput                              29188.3 lps   (30.0 s, 2 samples)
+File Copy 1024 bufsize 2000 maxblocks         49192.0 KBps  (30.4 s, 2 samples)
+File Copy 256 bufsize 500 maxblocks           12313.8 KBps  (30.3 s, 2 samples)
+File Copy 4096 bufsize 8000 maxblocks        185851.3 KBps  (30.3 s, 2 samples)
+Pipe Throughput                            18828496.2 lps   (10.0 s, 7 samples)
+Pipe-based Context Switching                3344071.3 lps   (10.0 s, 7 samples)
+Process Creation                              91472.9 lps   (30.0 s, 2 samples)
+Shell Scripts (1 concurrent)                  98641.4 lpm   (60.0 s, 2 samples)
+Shell Scripts (8 concurrent)                  12927.4 lpm   (60.1 s, 2 samples)
+System Call Overhead                        4336073.8 lps   (10.0 s, 7 samples)
+
+System Benchmarks Index Values               BASELINE       RESULT    INDEX
+Dhrystone 2 using register variables         116700.0  536124358.2  45940.4
+Double-Precision Whetstone                       55.0      63552.7  11555.0
+Execl Throughput                                 43.0      29188.3   6788.0
+File Copy 1024 bufsize 2000 maxblocks          3960.0      49192.0    124.2
+File Copy 256 bufsize 500 maxblocks            1655.0      12313.8     74.4
+File Copy 4096 bufsize 8000 maxblocks          5800.0     185851.3    320.4
+Pipe Throughput                               12440.0   18828496.2  15135.4
+Pipe-based Context Switching                   4000.0    3344071.3   8360.2
+Process Creation                                126.0      91472.9   7259.8
+Shell Scripts (1 concurrent)                     42.4      98641.4  23264.5
+Shell Scripts (8 concurrent)                      6.0      12927.4  21545.6
+System Call Overhead                          15000.0    4336073.8   2890.7
+                                                                   ========
+System Benchmarks Index Score                                        3944.9
